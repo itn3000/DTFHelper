@@ -1,0 +1,45 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.40629.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper", "DTFHelper\DTFHelper.csproj", "{05D739FC-DDF5-4BB0-B3A2-FE8E908E6F0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Sample.Msi", "DTFHelper.Sample.Msi\DTFHelper.Sample.Msi.csproj", "{0330F655-BAA9-4F12-B6D5-B98852DB8CBE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Sample.NoUIBA", "DTFHelper.Sample.NoUIBA\DTFHelper.Sample.NoUIBA.csproj", "{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Test", "DTFHelper.Test\DTFHelper.Test.csproj", "{3580BCA0-C04D-4E70-A835-7BFA61F2C032}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{3194CAD2-A255-4F46-BA63-F36C06D86655}"
+	ProjectSection(SolutionItems) = preProject
+		.nuget\packages.config = .nuget\packages.config
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{05D739FC-DDF5-4BB0-B3A2-FE8E908E6F0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05D739FC-DDF5-4BB0-B3A2-FE8E908E6F0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05D739FC-DDF5-4BB0-B3A2-FE8E908E6F0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05D739FC-DDF5-4BB0-B3A2-FE8E908E6F0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0330F655-BAA9-4F12-B6D5-B98852DB8CBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0330F655-BAA9-4F12-B6D5-B98852DB8CBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0330F655-BAA9-4F12-B6D5-B98852DB8CBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0330F655-BAA9-4F12-B6D5-B98852DB8CBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

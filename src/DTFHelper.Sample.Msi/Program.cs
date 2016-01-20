@@ -18,6 +18,13 @@ namespace DTFHelper.Sample.Msi
             project.GUID = new Guid("{7F9D7171-087C-47C9-91C3-503DBCAED2DD}");
             project.ProductId = new Guid("{0FF8824C-5297-4F18-8566-D7E35407F84E}");
             project.UpgradeCode = new Guid("{E748FC44-0E0A-4783-8DB5-CEAD1BEAB602}");
+            project.MajorUpgrade = new MajorUpgrade()
+            {
+                AllowDowngrades = false
+                , AllowSameVersionUpgrades = true
+                , DowngradeErrorMessage = "newer product is installed"
+                ,
+            };
             Compiler.BuildMsi(project);
         }
     }
