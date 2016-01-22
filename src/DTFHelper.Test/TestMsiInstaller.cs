@@ -31,5 +31,31 @@ namespace DTFHelper.Test
                 catch { }
             }
         }
+        [Fact]
+        public void TestAdministrativeInstall()
+        {
+            var tmpPath = Path.GetTempFileName();
+            var tmpDir = Path.Combine(Path.GetTempPath(),"TestAdministrativeInstall");
+            try
+            {
+                Directory.CreateDirectory(tmpDir);
+                File.WriteAllBytes(tmpPath, Resources.DTFHelperSample);
+                var installer = new MsiInstaller(tmpPath);
+                installer.ExecuteAdministrativeInstall(tmpDir);
+            }
+            finally
+            {
+                try
+                {
+                    File.Delete(tmpPath);
+                }
+                catch { }
+                try
+                {
+                    Directory.Delete(tmpDir, true);
+                }
+                catch { }
+            }
+        }
     }
 }
