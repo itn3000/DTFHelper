@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Sample.Msi", "DTF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Sample.NoUIBA", "DTFHelper.Sample.NoUIBA\DTFHelper.Sample.NoUIBA.csproj", "{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DTFHelper.Test", "DTFHelper.Test\DTFHelper.Test.csproj", "{3580BCA0-C04D-4E70-A835-7BFA61F2C032}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E25F3B26-8B06-4ECC-966F-41D91CB8AE55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3580BCA0-C04D-4E70-A835-7BFA61F2C032}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

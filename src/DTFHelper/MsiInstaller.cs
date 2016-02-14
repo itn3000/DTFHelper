@@ -59,15 +59,24 @@ namespace DTFHelper
         /// </summary>
         ProgressAddition = 3,
     }
+    public class ProgressInfo
+    {
+        public int TotalProgress { get; set; }
+        public bool IsForward { get; set; }
+        public int CurrentPosition { get; set; }
+        public bool IsScriptInProgress { get; set; }
+        public int ProgressTicks { get; set; }
+        public bool IsEnableActionData { get; set; }
+        public int CurrentTicks { get; set; }
+    }
     /// <summary>
     /// https://msdn.microsoft.com/en-us/library/aa368786.aspx
     /// </summary>
     public class ProgressEventArgs :EventArgs
     {
-        public int ProgressTotal { get; set; }
-        public int ProgressKind { get; set; }
-        public int Ticks { get; set; }
+        public int TotalProgress { get; set; }
         public bool IsForward { get; set; }
+        public int CurrentTicks { get; set; }
     }
     public class LoggingEventArgs : EventArgs
     {
@@ -76,24 +85,61 @@ namespace DTFHelper
     }
     internal static class MsiRecordExtension
     {
-        public static ProgressEventArgs ToProgressEventArg(this Record messageRecord, bool direction)
+        public static ProgressEventArgs ToProgressEventArgs(this ProgressInfo info)
         {
-            if(messageRecord.FieldCount < 1)
+            return new ProgressEventArgs()
             {
-                return null;
+                CurrentTicks = info.CurrentTicks
+                ,
+                IsForward = info.IsForward
+                ,
+                TotalProgress = info.TotalProgress
+            };
+        }
+        public static ProgressInfo ProcessMessage(this ProgressInfo progressInfo,Record messageRecord)
+        {
+            if (messageRecord.FieldCount < 1)
+            {
+                return progressInfo;
             }
             var kind = messageRecord.GetInteger(1);
             switch(kind)
             {
                 case (int)ProgressEventKind.Reset:
-                    break;
+                    {
+                        progressInfo.TotalProgress = messageRecord.GetInteger(2);
+                        progressInfo.IsForward = messageRecord.GetInteger(3) == 0;
+                        progressInfo.ProgressTicks = progressInfo.IsForward ? 0 : progressInfo.TotalProgress;
+                        progressInfo.IsScriptInProgress = messageRecord.GetInteger(4) == 1;
+                        progressInfo.CurrentPosition = 0;
+                        progressInfo.CurrentTicks = progressInfo.IsScriptInProgress ? progressInfo.TotalProgress : progressInfo.ProgressTicks;
+                        return progressInfo;
+                    }
                 case (int)ProgressEventKind.ActionInfo:
-                    break;
+                    {
+                        progressInfo.IsEnableActionData = messageRecord.GetInteger(3) != 0;
+                        var ticks = progressInfo.IsForward ? messageRecord.GetInteger(2) : (-1 * messageRecord.GetInteger(2));
+                        progressInfo.CurrentTicks += ticks;
+                        return progressInfo;
+                    }
                 case (int)ProgressEventKind.ProgressReport:
+                    {
+                        if (progressInfo.TotalProgress == 0)
+                        {
+                            return progressInfo;
+                        }
+                        else
+                        {
+                            progressInfo.CurrentPosition += messageRecord.GetInteger(2);
+                            progressInfo.CurrentTicks += progressInfo.IsForward ? progressInfo.CurrentPosition : (-1 * progressInfo.CurrentPosition);
+                            return progressInfo;
+                        }
+                    }
                     break;
                 default:
                     return null;
             }
+            return null;
         }
     }
     public class MsiInstaller
@@ -111,12 +157,19 @@ namespace DTFHelper
             private set;
         }
         bool m_IsForwardProgress = true;
+        int m_TotalProgressTicks;
+        int m_CurrentPosition = 0;
+        int m_CurrentProgressTicks = 0;
         ExternalUIRecordHandler m_ExternalUIHandler;
+        ProgressInfo m_ProgressInfo = new ProgressInfo()
+        {
+        };
         MessageResult OnExternalUI(InstallMessage messageType, Record messageRecord, MessageButtons buttons, MessageIcon icon, MessageDefaultButton defaultButton)
         {
             switch (messageType)
             {
                 case InstallMessage.ActionStart:
+                    m_ProgressInfo.IsEnableActionData = false;
                     if (OnActionStart != null)
                     {
                         return OnActionStart(this, new ActionStartEventArgs() 
@@ -143,6 +196,20 @@ namespace DTFHelper
                     break;
                 case InstallMessage.ActionData:
                     // TODO(formatted data for action)
+                    {
+                        if(m_ProgressInfo.TotalProgress == 0)
+                        {
+                            return MessageResult.OK;
+                        }
+                        if (m_ProgressInfo.IsEnableActionData)
+                        {
+                            m_ProgressInfo.CurrentTicks = 0;
+                        }
+                        if(OnProgress != null)
+                        {
+                            OnProgress(this, m_ProgressInfo.ToProgressEventArgs());
+                        }
+                    }
                     break;
                 case InstallMessage.Error:
                 case InstallMessage.Warning:
@@ -165,7 +232,8 @@ namespace DTFHelper
                 case InstallMessage.Progress:
                     if(OnProgress != null)
                     {
-                        return OnProgress(this, new ProgressEventArgs());
+                        m_ProgressInfo.ProcessMessage(messageRecord);
+                        return OnProgress(this, m_ProgressInfo.ToProgressEventArgs());
                     }
                     break;
                 default:
