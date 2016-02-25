@@ -82,6 +82,7 @@ namespace DTFHelper
     {
         public string FormattedMessage { get; set; }
         public InstallLogModes LogMode { get; set; }
+        public IList<string> Parameters { get; set; }
     }
     internal static class MsiRecordExtension
     {
@@ -98,6 +99,10 @@ namespace DTFHelper
         }
         public static ProgressInfo ProcessMessage(this ProgressInfo progressInfo,Record messageRecord)
         {
+            if (messageRecord == null)
+            {
+                return progressInfo;
+            }
             if (messageRecord.FieldCount < 1)
             {
                 return progressInfo;
@@ -135,11 +140,26 @@ namespace DTFHelper
                             return progressInfo;
                         }
                     }
-                    break;
                 default:
                     return null;
             }
-            return null;
+        }
+        public static InstallLogModes ToInstallLogMode(this InstallMessage msgType)
+        {
+            switch (msgType)
+            {
+                case InstallMessage.Error:
+                    return InstallLogModes.Error;
+                case InstallMessage.Warning:
+                    return InstallLogModes.Warning;
+                case InstallMessage.Info:
+                    return InstallLogModes.Info;
+                case InstallMessage.User:
+                    return InstallLogModes.User;
+                default:
+                    throw new ArgumentException("unknown argument", "msgType");
+            }
+
         }
     }
     public class MsiInstaller
@@ -214,10 +234,20 @@ namespace DTFHelper
                 case InstallMessage.Error:
                 case InstallMessage.Warning:
                 case InstallMessage.Info:
-                    // TODO(logging)
-                    break;
                 case InstallMessage.User:
                     // TODO(user request message)
+                    if(OnLogging != null)
+                    {
+                        var logMode =
+                        OnLogging(this, new LoggingEventArgs()
+                        {
+                            FormattedMessage = messageRecord.FormatString
+                            ,
+                            LogMode = messageType.ToInstallLogMode()
+                            ,
+                            Parameters = Enumerable.Range(0, messageRecord.FieldCount + 1).Select(x => messageRecord[x] != null ? messageRecord[x].ToString() : "").ToArray()
+                        });
+                    }
                     break;
                 case InstallMessage.Terminate:
                     // TODO(after ui termination,no string data)
@@ -260,6 +290,51 @@ namespace DTFHelper
             }
         }
         public string LogFilePath { get; set; }
+        string GetProductCode(string msiPath)
+        {
+            using (var db = new InstallPackage(msiPath, DatabaseOpenMode.ReadOnly))
+            {
+                return db.Property["ProductCode"];
+            }
+        }
+        public void ExecuteUninstall()
+        {
+            if(!InstallationMutex.WaitOne(1))
+            {
+                throw new InvalidOperationException("another installation running");
+            }
+            try
+            {
+                var oldHandler = Installer.SetExternalUI(new ExternalUIRecordHandler(OnExternalUI)
+                    , InstallLogModes.ActionData
+                    | InstallLogModes.ActionStart
+                    | InstallLogModes.Error
+                    | InstallLogModes.Initialize
+                    | InstallLogModes.Progress
+                    | InstallLogModes.ShowDialog
+                    | InstallLogModes.Terminate
+                    | InstallLogModes.User
+                    | InstallLogModes.Info
+                    | InstallLogModes.Warning
+                    | InstallLogModes.FilesInUse)
+                    ;
+                IsRunningAnotherInstallation = true;
+                try
+                {
+                    var productCode = GetProductCode(m_MsiPath);
+                    Installer.ConfigureProduct(productCode, 0, InstallState.Absent
+                        , string.Join(" ", Properties.Select(kv => string.Format("{0}=\"{1}\"", kv.Key, kv.Value.Replace("\\", "\\\\")))));
+                }
+                finally
+                {
+                    Installer.SetExternalUI(oldHandler, InstallLogModes.None);
+                }
+            }
+            finally
+            {
+                IsRunningAnotherInstallation = false;
+            }
+        }
         public void ExecuteInstall()
         {
             if (!InstallationMutex.WaitOne(1))
@@ -300,13 +375,13 @@ namespace DTFHelper
             }
         }
         public delegate MessageResult OnActionStartCallback(object sender, ActionStartEventArgs e);
-        public event OnActionStartCallback OnActionStart;
+        public event Func<object, ActionStartEventArgs, MessageResult> OnActionStart;
         public delegate MessageResult OnTerminateCallback(object sender, TerminateEventArgs e);
         public event OnTerminateCallback OnTerminate;
         public delegate MessageResult OnProgressCallback(object sender, ProgressEventArgs e);
         public event OnProgressCallback OnProgress;
         public delegate MessageResult OnLoggingMessageCallback(object sender, LoggingEventArgs e);
-        public event OnLoggingMessageCallback OnLogging;
+        public event Func<object, LoggingEventArgs, MessageResult> OnLogging;
         /// <summary>
         /// MSI does not allow the parallel install transaction.
         /// the mutex is for preventing parallel install transaction

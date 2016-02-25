@@ -80,9 +80,10 @@ namespace DTFHelper.Sample.NoUIBA
         }
         static void Main(string[] args)
         {
-            if (args == null || args.Any())
+            if (args == null || !args.Any())
             {
                 Console.Error.WriteLine("you must specify msi file path");
+                return;
             }
             var msiPath = args[0];
         }
