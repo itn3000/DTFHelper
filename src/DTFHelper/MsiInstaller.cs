@@ -65,24 +65,35 @@ namespace DTFHelper
         public bool IsForward { get; set; }
         public int CurrentPosition { get; set; }
         public bool IsScriptInProgress { get; set; }
-        public int ProgressTicks { get; set; }
         public bool IsEnableActionData { get; set; }
-        public int CurrentTicks { get; set; }
+        public int ProgressPerAction { get; set; }
+        public string CurrentAction { get; set; }
     }
     /// <summary>
     /// https://msdn.microsoft.com/en-us/library/aa368786.aspx
     /// </summary>
-    public class ProgressEventArgs :EventArgs
+    public class ProgressEventArgs : EventArgs
     {
         public int TotalProgress { get; set; }
         public bool IsForward { get; set; }
-        public int CurrentTicks { get; set; }
+        public int CurrentPosition { get; set; }
+        public string CurrentAction { get; set; }
+        public bool IsEnableActionData { get; set; }
     }
     public class LoggingEventArgs : EventArgs
     {
         public string FormattedMessage { get; set; }
+        public string PreformatMessage { get; set; }
         public InstallLogModes LogMode { get; set; }
         public IList<string> Parameters { get; set; }
+    }
+    public class ExceptionEventArgs : EventArgs
+    {
+        public Exception Exception { get; set; }
+    }
+    public class FilesInUseEventArgs : EventArgs
+    {
+        public IList<FilesInUseElement> Files { get; set; }
     }
     internal static class MsiRecordExtension
     {
@@ -90,14 +101,18 @@ namespace DTFHelper
         {
             return new ProgressEventArgs()
             {
-                CurrentTicks = info.CurrentTicks
+                CurrentPosition = info.CurrentPosition
                 ,
                 IsForward = info.IsForward
                 ,
                 TotalProgress = info.TotalProgress
+                ,
+                CurrentAction = info.CurrentAction
+                ,
+                IsEnableActionData = info.IsEnableActionData
             };
         }
-        public static ProgressInfo ProcessMessage(this ProgressInfo progressInfo,Record messageRecord)
+        public static ProgressInfo ProcessMessage(this ProgressInfo progressInfo, Record messageRecord)
         {
             if (messageRecord == null)
             {
@@ -108,23 +123,27 @@ namespace DTFHelper
                 return progressInfo;
             }
             var kind = messageRecord.GetInteger(1);
-            switch(kind)
+            switch (kind)
             {
                 case (int)ProgressEventKind.Reset:
                     {
                         progressInfo.TotalProgress = messageRecord.GetInteger(2);
                         progressInfo.IsForward = messageRecord.GetInteger(3) == 0;
-                        progressInfo.ProgressTicks = progressInfo.IsForward ? 0 : progressInfo.TotalProgress;
                         progressInfo.IsScriptInProgress = messageRecord.GetInteger(4) == 1;
-                        progressInfo.CurrentPosition = 0;
-                        progressInfo.CurrentTicks = progressInfo.IsScriptInProgress ? progressInfo.TotalProgress : progressInfo.ProgressTicks;
+                        progressInfo.CurrentPosition = progressInfo.IsForward ? 0 : progressInfo.TotalProgress;
                         return progressInfo;
                     }
                 case (int)ProgressEventKind.ActionInfo:
                     {
                         progressInfo.IsEnableActionData = messageRecord.GetInteger(3) != 0;
-                        var ticks = progressInfo.IsForward ? messageRecord.GetInteger(2) : (-1 * messageRecord.GetInteger(2));
-                        progressInfo.CurrentTicks += ticks;
+                        if (messageRecord.GetInteger(3) != 0)
+                        {
+                            progressInfo.ProgressPerAction = messageRecord.GetInteger(2);
+                        }
+                        else
+                        {
+                            progressInfo.ProgressPerAction = 0;
+                        }
                         return progressInfo;
                     }
                 case (int)ProgressEventKind.ProgressReport:
@@ -136,31 +155,56 @@ namespace DTFHelper
                         else
                         {
                             progressInfo.CurrentPosition += messageRecord.GetInteger(2);
-                            progressInfo.CurrentTicks += progressInfo.IsForward ? progressInfo.CurrentPosition : (-1 * progressInfo.CurrentPosition);
                             return progressInfo;
                         }
+                    }
+                case (int)ProgressEventKind.ProgressAddition:
+                    {
+                        progressInfo.TotalProgress += messageRecord.GetInteger(2);
+                        return progressInfo;
                     }
                 default:
                     return null;
             }
         }
+        static List<Tuple<InstallLogModes, InstallMessage>> LogModeMessageList = new List<Tuple<InstallLogModes, InstallMessage>>()
+        {
+            Tuple.Create(InstallLogModes.Error,InstallMessage.Error),
+            Tuple.Create(InstallLogModes.Warning,InstallMessage.Warning),
+            Tuple.Create(InstallLogModes.Info,InstallMessage.Info),
+            Tuple.Create(InstallLogModes.User,InstallMessage.User),
+            Tuple.Create(InstallLogModes.Warning,InstallMessage.Warning),
+            Tuple.Create(InstallLogModes.ActionData,InstallMessage.ActionData),
+            Tuple.Create(InstallLogModes.ActionStart,InstallMessage.ActionStart),
+            Tuple.Create(InstallLogModes.CommonData,InstallMessage.CommonData),
+            Tuple.Create(InstallLogModes.FatalExit,InstallMessage.FatalExit),
+            Tuple.Create(InstallLogModes.FilesInUse,InstallMessage.FilesInUse),
+            Tuple.Create(InstallLogModes.Initialize,InstallMessage.Initialize),
+            Tuple.Create(InstallLogModes.OutOfDiskSpace,InstallMessage.OutOfDiskSpace),
+            Tuple.Create(InstallLogModes.Progress,InstallMessage.Progress),
+            Tuple.Create(InstallLogModes.ResolveSource,InstallMessage.ResolveSource),
+            Tuple.Create(InstallLogModes.RMFilesInUse,InstallMessage.RMFilesInUse),
+            Tuple.Create(InstallLogModes.ShowDialog,InstallMessage.ShowDialog),
+            Tuple.Create(InstallLogModes.Terminate,InstallMessage.Terminate),
+        };
         public static InstallLogModes ToInstallLogMode(this InstallMessage msgType)
         {
-            switch (msgType)
+            var t = LogModeMessageList.FirstOrDefault(x => x.Item2 == msgType);
+            if (t != null)
             {
-                case InstallMessage.Error:
-                    return InstallLogModes.Error;
-                case InstallMessage.Warning:
-                    return InstallLogModes.Warning;
-                case InstallMessage.Info:
-                    return InstallLogModes.Info;
-                case InstallMessage.User:
-                    return InstallLogModes.User;
-                default:
-                    throw new ArgumentException("unknown argument", "msgType");
+                return t.Item1;
             }
-
+            else
+            {
+                throw new ArgumentException("unknown argument", "msgType");
+            }
         }
+    }
+    public class FilesInUseElement
+    {
+        public string ProcessName { get; set; }
+        public int? ProcessId { get; set; }
+        public string WindowTitle { get; set; }
     }
     public class MsiInstaller
     {
@@ -176,37 +220,50 @@ namespace DTFHelper
             get;
             private set;
         }
-        bool m_IsForwardProgress = true;
-        int m_TotalProgressTicks;
-        int m_CurrentPosition = 0;
-        int m_CurrentProgressTicks = 0;
         ExternalUIRecordHandler m_ExternalUIHandler;
         ProgressInfo m_ProgressInfo = new ProgressInfo()
         {
         };
-        MessageResult OnExternalUI(InstallMessage messageType, Record messageRecord, MessageButtons buttons, MessageIcon icon, MessageDefaultButton defaultButton)
+        MessageResult ProcessMessage(InstallMessage messageType, Record messageRecord, MessageButtons buttons, MessageIcon icon, MessageDefaultButton defaultButton)
         {
             switch (messageType)
             {
                 case InstallMessage.ActionStart:
                     m_ProgressInfo.IsEnableActionData = false;
+                    m_ProgressInfo.CurrentAction = messageRecord.GetString(1);
                     if (OnActionStart != null)
                     {
-                        return OnActionStart(this, new ActionStartEventArgs() 
+                        return OnActionStart(this, new ActionStartEventArgs()
                         {
                             MessageType = messageType,
-                            MessageRecord = messageRecord 
+                            MessageRecord = messageRecord
                         });
                     }
                     break;
                 case InstallMessage.InstallStart:
-                    // TODO(before installation start)
+                    // TODO(before installation start(before initailize))
+                    if (OnInitialize != null)
+                    {
+                        OnInitialize(this, new EventArgs());
+                    }
                     break;
                 case InstallMessage.InstallEnd:
-                    // TODO(after installation end)
+                    // TODO(after installation end(after terminate))
                     break;
+                case InstallMessage.FilesInUse:
                 case InstallMessage.RMFilesInUse:
                     // TODO(List of apps that the user can request Restart Manager to shut down and restart.)
+                    //if(OnFilesInUse != null)
+                    //{
+                    //    return OnFilesInUse(this, new FilesInUseEventArgs()
+                    //    {
+                    //        Files = Enumerable.Range(1, messageRecord.FieldCount).Select(i =>
+                    //        {
+                    //            var pid = messageRecord.GetString()
+                    //            return new FilesInUseElement();
+                    //        })
+                    //    });
+                    //}
                     break;
                 case InstallMessage.ShowDialog:
                     // TODO(show dialog event)
@@ -215,17 +272,16 @@ namespace DTFHelper
                     // TODO(common product info:language id,caption)
                     break;
                 case InstallMessage.ActionData:
-                    // TODO(formatted data for action)
                     {
-                        if(m_ProgressInfo.TotalProgress == 0)
+                        if (m_ProgressInfo.TotalProgress == 0)
                         {
                             return MessageResult.OK;
                         }
                         if (m_ProgressInfo.IsEnableActionData)
                         {
-                            m_ProgressInfo.CurrentTicks = 0;
+                            m_ProgressInfo.CurrentPosition += m_ProgressInfo.ProgressPerAction;
                         }
-                        if(OnProgress != null)
+                        if (OnProgress != null)
                         {
                             OnProgress(this, m_ProgressInfo.ToProgressEventArgs());
                         }
@@ -235,13 +291,14 @@ namespace DTFHelper
                 case InstallMessage.Warning:
                 case InstallMessage.Info:
                 case InstallMessage.User:
-                    // TODO(user request message)
-                    if(OnLogging != null)
+                    if (OnLogging != null)
                     {
                         var logMode =
                         OnLogging(this, new LoggingEventArgs()
                         {
-                            FormattedMessage = messageRecord.FormatString
+                            FormattedMessage = messageRecord.ToString()
+                            ,
+                            PreformatMessage = messageRecord.FormatString
                             ,
                             LogMode = messageType.ToInstallLogMode()
                             ,
@@ -251,16 +308,19 @@ namespace DTFHelper
                     break;
                 case InstallMessage.Terminate:
                     // TODO(after ui termination,no string data)
-                    if(OnTerminate != null)
+                    if (OnTerminate != null)
                     {
                         return OnTerminate(this, new TerminateEventArgs());
                     }
                     break;
                 case InstallMessage.Initialize:
-                    // TODO(before ui initialize,no string data)
+                    if (OnInitialize != null)
+                    {
+                        return OnInitialize(this, new EventArgs());
+                    }
                     break;
                 case InstallMessage.Progress:
-                    if(OnProgress != null)
+                    if (OnProgress != null)
                     {
                         m_ProgressInfo.ProcessMessage(messageRecord);
                         return OnProgress(this, m_ProgressInfo.ToProgressEventArgs());
@@ -271,6 +331,30 @@ namespace DTFHelper
             }
             // nothing to do in this callback. pass another layer
             return MessageResult.None;
+        }
+        MessageResult OnExternalUI(InstallMessage messageType, Record messageRecord, MessageButtons buttons, MessageIcon icon, MessageDefaultButton defaultButton)
+        {
+            try
+            {
+                var records = messageRecord != null ? Enumerable.Range(0, messageRecord.FieldCount + 1).Select(i => messageRecord.GetString(i)) : Enumerable.Empty<string>();
+                System.Diagnostics.Trace.WriteLine(string.Format("onexternalui({0}):{1},{2}"
+                    , messageType
+                    , messageRecord == null ? "(null)" : messageRecord.ToString()
+                    , messageRecord != null ? string.Join(";", records) : ""
+                    ));
+                return ProcessMessage(messageType, messageRecord, buttons, icon, defaultButton);
+            }
+            catch (Exception e)
+            {
+                if (OnException != null)
+                {
+                    return OnException(this, new ExceptionEventArgs()
+                    {
+                        Exception = e
+                    });
+                }
+                return MessageResult.Abort;
+            }
         }
         public void ExecuteAdministrativeInstall(string destdir)
         {
@@ -299,7 +383,7 @@ namespace DTFHelper
         }
         public void ExecuteUninstall()
         {
-            if(!InstallationMutex.WaitOne(1))
+            if (!InstallationMutex.WaitOne(1))
             {
                 throw new InvalidOperationException("another installation running");
             }
@@ -316,7 +400,10 @@ namespace DTFHelper
                     | InstallLogModes.User
                     | InstallLogModes.Info
                     | InstallLogModes.Warning
-                    | InstallLogModes.FilesInUse)
+                    | InstallLogModes.FilesInUse
+                    | InstallLogModes.CommonData
+                    | InstallLogModes.RMFilesInUse
+                    )
                     ;
                 IsRunningAnotherInstallation = true;
                 try
@@ -343,6 +430,7 @@ namespace DTFHelper
             }
             try
             {
+                var option = Installer.SetInternalUI(InstallUIOptions.Full);
                 Installer.EnableLog(InstallLogModes.Verbose, LogFilePath);
                 IsRunningAnotherInstallation = true;
                 var oldHandler = Installer.SetExternalUI(new ExternalUIRecordHandler(OnExternalUI)
@@ -356,7 +444,10 @@ namespace DTFHelper
                     | InstallLogModes.User
                     | InstallLogModes.Info
                     | InstallLogModes.Warning
-                    | InstallLogModes.FilesInUse)
+                    | InstallLogModes.FilesInUse
+                    | InstallLogModes.CommonData
+                    | InstallLogModes.RMFilesInUse
+                    )
                     ;
                 try
                 {
@@ -365,6 +456,7 @@ namespace DTFHelper
                 }
                 finally
                 {
+                    Installer.SetInternalUI(option);
                     Installer.SetExternalUI(oldHandler, InstallLogModes.None);
                 }
             }
@@ -382,6 +474,9 @@ namespace DTFHelper
         public event OnProgressCallback OnProgress;
         public delegate MessageResult OnLoggingMessageCallback(object sender, LoggingEventArgs e);
         public event Func<object, LoggingEventArgs, MessageResult> OnLogging;
+        public event Func<object, EventArgs, MessageResult> OnInitialize;
+        public event Func<object, ExceptionEventArgs, MessageResult> OnException;
+        public event Func<object, FilesInUseEventArgs, MessageResult> OnFilesInUse;
         /// <summary>
         /// MSI does not allow the parallel install transaction.
         /// the mutex is for preventing parallel install transaction
@@ -399,7 +494,7 @@ namespace DTFHelper
             }
             private set
             {
-                lock(InstallationLockObject)
+                lock (InstallationLockObject)
                 {
                     m_IsRunningAnoterInstallation = value;
                 }
@@ -440,7 +535,7 @@ namespace DTFHelper
                     foreach (var upgrade in upgradeCodeList)
                     {
                         var propResult = session.GetProductProperty(upgrade["ActionProperty"].ToString());
-                        if(!string.IsNullOrEmpty(propResult))
+                        if (!string.IsNullOrEmpty(propResult))
                         {
                             result.Add(upgrade["ActionProperty"].ToString(), propResult);
                         }

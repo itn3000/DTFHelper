@@ -55,9 +55,19 @@ namespace DTFHelper.Test
                 installer.OnProgress += (sender, ev) =>
                 {
                     System.Diagnostics.Trace.WriteLine(string.Format("onprogress = {0}"
-                        , new { ev.CurrentTicks, ev.IsForward, ev.TotalProgress }));
+                        , new { CurrentTicks = ev.CurrentPosition, ev.IsForward, ev.TotalProgress, ev.CurrentAction, ev.IsEnableActionData }));
                     Console.WriteLine(string.Format("onprogress = {0}"
-                        , new { ev.CurrentTicks, ev.IsForward, ev.TotalProgress }));
+                        , new { CurrentTicks = ev.CurrentPosition, ev.IsForward, ev.TotalProgress, ev.CurrentAction, ev.IsEnableActionData }));
+                    return MessageResult.None;
+                };
+                installer.OnActionStart += (sender, ev) =>
+                {
+                    System.Diagnostics.Trace.WriteLine(string.Format("onaction = {0},{1}", ev.MessageType, ev.MessageRecord.ToString()));
+                    return MessageResult.None;
+                };
+                installer.OnTerminate += (sender, ev) =>
+                {
+                    System.Diagnostics.Trace.WriteLine("onterminate");
                     return MessageResult.None;
                 };
                 installer.ExecuteInstall();
@@ -65,9 +75,11 @@ namespace DTFHelper.Test
                 {
                     System.Diagnostics.Trace.WriteLine(string.Format("productcode = {0},installed feature = {1}"
                         , productCode
-                        , string.Join(",", session.Features.Select(x => x.Name))));
+                        , session.Features != null ? string.Join(",", session.Features.Select(x => x.Name)) : ""));
                 }
+                System.Diagnostics.Trace.WriteLine("finish install");
                 installer.ExecuteUninstall();
+                System.Diagnostics.Trace.WriteLine("finish uninstall");
             }
             finally
             {

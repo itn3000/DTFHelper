@@ -25,6 +25,7 @@ namespace DTFHelper.Sample.Msi
                 , DowngradeErrorMessage = "newer product is installed"
                 ,
             };
+            project.UI = WUI.WixUI_Mondo;
             Compiler.BuildMsi(project);
         }
     }
