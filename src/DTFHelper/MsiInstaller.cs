@@ -95,6 +95,19 @@ namespace DTFHelper
     {
         public IList<FilesInUseElement> Files { get; set; }
     }
+    public class CancelShowChangedEventArgs : EventArgs
+    {
+        public bool ShouldEnableCancel { get; set; }
+    }
+    public class CaptionInformedEventArgs : EventArgs
+    {
+        public string Title { get; set; }
+    }
+    public class LanguageInfoEventArgs : EventArgs
+    {
+        public int LanguageID { get; set; }
+        public int CodePage { get; set; }
+    }
     internal static class MsiRecordExtension
     {
         public static ProgressEventArgs ToProgressEventArgs(this ProgressInfo info)
@@ -224,6 +237,42 @@ namespace DTFHelper
         ProgressInfo m_ProgressInfo = new ProgressInfo()
         {
         };
+        MessageResult ProcessCommonData(Record messageRecord)
+        {
+            var type = messageRecord.GetInteger(1);
+            switch(type)
+            {
+                case 0:
+                    if(OnLanguageInfo != null)
+                    {
+                        OnLanguageInfo(this, new LanguageInfoEventArgs()
+                        {
+                            LanguageID = messageRecord.GetInteger(2)
+                            ,
+                            CodePage = messageRecord.GetInteger(3)
+                        });
+                    }
+                    break;
+                case 1:
+                    if(OnCaptionInformed != null)
+                    {
+                        OnCaptionInformed(this, new CaptionInformedEventArgs() { Title = messageRecord.GetString(2) });
+                    }
+                    break;
+                case 2:
+                    if(OnCancelShowChanged != null)
+                    {
+                        OnCancelShowChanged(this, new CancelShowChangedEventArgs()
+                        {
+                            ShouldEnableCancel = messageRecord.GetInteger(2) != 0
+                        });
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return MessageResult.None;
+        }
         MessageResult ProcessMessage(InstallMessage messageType, Record messageRecord, MessageButtons buttons, MessageIcon icon, MessageDefaultButton defaultButton)
         {
             switch (messageType)
@@ -248,29 +297,51 @@ namespace DTFHelper
                     }
                     break;
                 case InstallMessage.InstallEnd:
-                    // TODO(after installation end(after terminate))
+                    if(OnInstallEnd != null)
+                    {
+                        OnInstallEnd(this, new EventArgs());
+                    }
                     break;
                 case InstallMessage.FilesInUse:
                 case InstallMessage.RMFilesInUse:
                     // TODO(List of apps that the user can request Restart Manager to shut down and restart.)
-                    //if(OnFilesInUse != null)
-                    //{
-                    //    return OnFilesInUse(this, new FilesInUseEventArgs()
-                    //    {
-                    //        Files = Enumerable.Range(1, messageRecord.FieldCount).Select(i =>
-                    //        {
-                    //            var pid = messageRecord.GetString()
-                    //            return new FilesInUseElement();
-                    //        })
-                    //    });
-                    //}
+                    if (OnFilesInUse != null)
+                    {
+                        return OnFilesInUse(this, new FilesInUseEventArgs()
+                        {
+                            Files = Enumerable.Range(1, messageRecord.FieldCount / 2).Select(i =>
+                              {
+                                  var procName = messageRecord.GetString(i * 2 + 1);
+                                  var pidOrTitle = messageRecord.GetString(i * 2 + 2);
+                                  int? pid = null;
+                                  string title = null;
+                                  int tmp = 0;
+                                  if(int.TryParse(pidOrTitle,out tmp))
+                                  {
+                                      pid = tmp;
+                                  }
+                                  else
+                                  {
+                                      title = pidOrTitle;
+                                  }
+                                  return new FilesInUseElement()
+                                  {
+                                      ProcessName = procName
+                                      ,
+                                      ProcessId = pid
+                                      ,
+                                      WindowTitle = title
+                                  };
+                              }).ToList()
+                        });
+                    }
                     break;
                 case InstallMessage.ShowDialog:
                     // TODO(show dialog event)
                     break;
                 case InstallMessage.CommonData:
                     // TODO(common product info:language id,caption)
-                    break;
+                    return ProcessCommonData(messageRecord);
                 case InstallMessage.ActionData:
                     {
                         if (m_ProgressInfo.TotalProgress == 0)
@@ -307,7 +378,6 @@ namespace DTFHelper
                     }
                     break;
                 case InstallMessage.Terminate:
-                    // TODO(after ui termination,no string data)
                     if (OnTerminate != null)
                     {
                         return OnTerminate(this, new TerminateEventArgs());
@@ -477,6 +547,11 @@ namespace DTFHelper
         public event Func<object, EventArgs, MessageResult> OnInitialize;
         public event Func<object, ExceptionEventArgs, MessageResult> OnException;
         public event Func<object, FilesInUseEventArgs, MessageResult> OnFilesInUse;
+        public event Action<object, EventArgs> OnInstallEnd;
+        public event Action<object, CancelShowChangedEventArgs> OnCancelShowChanged;
+        public event Action<object, CaptionInformedEventArgs> OnCaptionInformed;
+        public event Action<object, LanguageInfoEventArgs> OnLanguageInfo;
+
         /// <summary>
         /// MSI does not allow the parallel install transaction.
         /// the mutex is for preventing parallel install transaction
