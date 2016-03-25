@@ -364,7 +364,6 @@ namespace DTFHelper
                 case InstallMessage.User:
                     if (OnLogging != null)
                     {
-                        var logMode =
                         OnLogging(this, new LoggingEventArgs()
                         {
                             FormattedMessage = messageRecord.ToString()
@@ -426,6 +425,10 @@ namespace DTFHelper
                 return MessageResult.Abort;
             }
         }
+        /// <summary>
+        /// Execute Administrative installation
+        /// </summary>
+        /// <param name="destdir">target root dir</param>
         public void ExecuteAdministrativeInstall(string destdir)
         {
             if (!InstallationMutex.WaitOne(1))
@@ -536,13 +539,9 @@ namespace DTFHelper
                 IsRunningAnotherInstallation = false;
             }
         }
-        public delegate MessageResult OnActionStartCallback(object sender, ActionStartEventArgs e);
         public event Func<object, ActionStartEventArgs, MessageResult> OnActionStart;
-        public delegate MessageResult OnTerminateCallback(object sender, TerminateEventArgs e);
-        public event OnTerminateCallback OnTerminate;
-        public delegate MessageResult OnProgressCallback(object sender, ProgressEventArgs e);
-        public event OnProgressCallback OnProgress;
-        public delegate MessageResult OnLoggingMessageCallback(object sender, LoggingEventArgs e);
+        public event Func<object, TerminateEventArgs, MessageResult> OnTerminate;
+        public event Func<object, ProgressEventArgs, MessageResult> OnProgress;
         public event Func<object, LoggingEventArgs, MessageResult> OnLogging;
         public event Func<object, EventArgs, MessageResult> OnInitialize;
         public event Func<object, ExceptionEventArgs, MessageResult> OnException;
@@ -595,28 +594,36 @@ namespace DTFHelper
         /// <returns>keyvalue pair of ActionProperty and product id list separeted by ';'</returns>
         public static IDictionary<string, string> GetRelatedProducts(string msiPath)
         {
-            using (var db = new InstallPackage(msiPath, DatabaseOpenMode.Transact))
+            var previous = Installer.SetInternalUI(InstallUIOptions.Silent);
+            try
             {
-                if (!db.Tables.Any(x => x.Name == "Upgrade"))
+                using (var db = new InstallPackage(msiPath, DatabaseOpenMode.Transact))
                 {
-                    return new Dictionary<string, string>();
-                }
-                var upgradeCodeList = db.ExecuteQueryToDictionary(UpgradeTableColumns, "SELECT {0} FROM Upgrade"
-                    , string.Join(",", UpgradeTableColumns));
-                using (var session = Installer.OpenPackage(db, true))
-                {
-                    session.DoAction("FindRelatedProducts");
-                    Dictionary<string, string> result = new Dictionary<string, string>();
-                    foreach (var upgrade in upgradeCodeList)
+                    if (!db.Tables.Any(x => x.Name == "Upgrade"))
                     {
-                        var propResult = session.GetProductProperty(upgrade["ActionProperty"].ToString());
-                        if (!string.IsNullOrEmpty(propResult))
-                        {
-                            result.Add(upgrade["ActionProperty"].ToString(), propResult);
-                        }
+                        return new Dictionary<string, string>();
                     }
-                    return result;
+                    var upgradeCodeList = db.ExecuteQueryToDictionary(UpgradeTableColumns, "SELECT {0} FROM Upgrade"
+                        , string.Join(",", UpgradeTableColumns));
+                    using (var session = Installer.OpenPackage(db, true))
+                    {
+                        session.DoAction("FindRelatedProducts");
+                        Dictionary<string, string> result = new Dictionary<string, string>();
+                        foreach (var upgrade in upgradeCodeList)
+                        {
+                            var propResult = session.GetProductProperty(upgrade["ActionProperty"].ToString());
+                            if (!string.IsNullOrEmpty(propResult))
+                            {
+                                result.Add(upgrade["ActionProperty"].ToString(), propResult);
+                            }
+                        }
+                        return result;
+                    }
                 }
+            }
+            finally
+            {
+                Installer.SetInternalUI(previous);
             }
         }
     }
